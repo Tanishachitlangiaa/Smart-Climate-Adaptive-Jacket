@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CLIMASHIELD - Smart Adaptive Uniform</title>
+    <!-- Tailwind CSS for UI -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- OrbitControls -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #1e293b; font-family: 'Segoe UI', sans-serif; }
+        #canvas-container { width: 100vw; height: 100vh; }
+        
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.9);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .log-entry {
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            margin-bottom: 4px;
+            opacity: 0;
+            animation: fadeIn 0.3s forwards;
+        }
+
+        @keyframes fadeIn { to { opacity: 1; } }
+        
+        /* Pulsing animation for the alert status */
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+        .status-pulse-red { animation: pulse-red 2s infinite; }
+
+        /* Custom scrollbar for log */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+    </style>
+</head>
+<body>
+
+    <!-- 3D Canvas -->
+    <div id="canvas-container"></div>
+
+    <!-- UI Overlay -->
+    <div class="absolute top-0 left-0 w-full h-full pointer-events-none flex flex-col justify-between p-4 md:p-6">
+        
+        <!-- Top Row: Header & System Log -->
+        <div class="pointer-events-auto flex flex-col md:flex-row justify-between items-start gap-4">
+            
+            <!-- Header -->
+            <div class="glass-panel p-5 rounded-2xl max-w-sm text-white">
+                <h1 class="text-2xl font-bold tracking-wider text-blue-400">CLIMASHIELD</h1>
+                <p class="text-[10px] font-mono text-gray-400 tracking-widest uppercase mb-2">Ergonomic Adaptive Uniform</p>
+                <div class="flex items-center gap-2 mt-2">
+                    <div id="led-indicator" class="w-3 h-3 rounded-full bg-blue-500 shadow-[0_0_8px_#3b82f6]"></div>
+                    <span id="mode-label" class="text-sm font-mono font-bold text-white">NORMAL MODE</span>
+                </div>
+            </div>
+
+            <!-- System Flow Log -->
+            <div class="glass-panel p-4 rounded-xl w-64 h-48 flex flex-col">
+                <div class="text-[10px] uppercase text-gray-400 font-bold mb-2 border-b border-gray-700 pb-1">System Logic Flow</div>
+                <div id="system-log" class="overflow-y-auto flex-1 text-green-400">
+                    <div class="log-entry text-gray-500">> System Initialized...</div>
+                    <div class="log-entry text-gray-500">> Sensors Active.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Row: Controls -->
+        <div class="pointer-events-auto flex flex-col items-center gap-4 mb-2">
+            
+            <!-- Context Text -->
+            <div id="status-text" class="text-center text-sm font-medium text-gray-300 drop-shadow-md bg-black/30 px-4 py-1 rounded-full">
+                Monitoring environmental sensors...
+            </div>
+
+            <!-- Control Buttons -->
+            <div class="glass-panel p-2 rounded-2xl flex gap-3 flex-wrap justify-center">
+                <button onclick="setWeather('normal')" class="group relative px-5 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 border border-blue-900/50 transition-all flex flex-col items-center min-w-[85px]">
+                    <span class="text-2xl mb-1 group-hover:scale-110 transition">🛡️</span>
+                    <span class="text-[10px] font-bold text-blue-300 uppercase">Normal</span>
+                    <div class="absolute inset-0 border border-blue-500/20 rounded-xl"></div>
+                </button>
+                <button onclick="setWeather('hot')" class="group relative px-5 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 border border-yellow-900/50 transition-all flex flex-col items-center min-w-[85px]">
+                    <span class="text-2xl mb-1 group-hover:scale-110 transition">🌞</span>
+                    <span class="text-[10px] font-bold text-yellow-300 uppercase">Heat</span>
+                    <div class="absolute inset-0 border border-yellow-500/20 rounded-xl"></div>
+                </button>
+                <button onclick="setWeather('storm')" class="group relative px-5 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 border border-red-900/50 transition-all flex flex-col items-center min-w-[85px]">
+                    <span class="text-2xl mb-1 group-hover:scale-110 transition">⛈️</span>
+                    <span class="text-[10px] font-bold text-red-400 uppercase">Storm</span>
+                    <div class="absolute inset-0 border border-red-500/20 rounded-xl"></div>
+                </button>
+                <button onclick="setWeather('fog')" class="group relative px-5 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 border border-gray-600/50 transition-all flex flex-col items-center min-w-[85px]">
+                    <span class="text-2xl mb-1 group-hover:scale-110 transition">🌫️</span>
+                    <span class="text-[10px] font-bold text-white uppercase">Fog</span>
+                    <div class="absolute inset-0 border border-white/20 rounded-xl"></div>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. SETUP THREE.JS SCENE ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x202936); // Slate background
+        scene.fog = new THREE.FogExp2(0x202936, 0.02); 
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 0.8, 3.8); // Adjusted camera height
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.minDistance = 2.5;
+        controls.maxDistance = 6;
+        controls.target.set(0, 0.5, 0);
+
+        // --- 2. LIGHTING (Studio Setup) ---
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+
+        const mainLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        mainLight.position.set(5, 8, 5);
+        mainLight.castShadow = true;
+        mainLight.shadow.mapSize.width = 1024;
+        mainLight.shadow.mapSize.height = 1024;
+        mainLight.shadow.bias = -0.0001;
+        scene.add(mainLight);
+
+        // Rim light
+        const rimLight = new THREE.SpotLight(0x3b82f6, 4);
+        rimLight.position.set(-5, 4, -3);
+        rimLight.lookAt(0, 0.5, 0);
+        scene.add(rimLight);
+
+        // Warm fill
+        const fillLight = new THREE.PointLight(0xffecd2, 0.6);
+        fillLight.position.set(5, 1, 2);
+        scene.add(fillLight);
+
+        // Collar Glow Light
+        const collarLight = new THREE.PointLight(0x0088ff, 0, 2.5);
+        collarLight.position.set(0, 1.35, 0.2);
+        scene.add(collarLight);
+
+        // Floor Grid
+        const gridHelper = new THREE.GridHelper(20, 20, 0x334155, 0x1e293b);
+        gridHelper.position.y = -1.4;
+        scene.add(gridHelper);
+
+        // --- 3. JACKET GEOMETRY (Redesigned for Realism) ---
+        const jacketGroup = new THREE.Group();
+        scene.add(jacketGroup);
+
+        // -- Materials --
+        const fabricMat = new THREE.MeshStandardMaterial({ 
+            color: 0x27354a, // Navy
+            roughness: 0.95, // Matte fabric
+            metalness: 0.0,
+            flatShading: false
+        });
+        const glossyMat = new THREE.MeshStandardMaterial({
+            color: 0x1e293b, roughness: 0.4, metalness: 0.3
+        });
+        const techMat = new THREE.MeshStandardMaterial({
+            color: 0x111111, roughness: 0.3, metalness: 0.8
+        });
+        const ledMat = new THREE.MeshBasicMaterial({ color: 0x0088ff });
+
+        // -- TORSO (Anatomical V-Taper) --
+        const torsoGroup = new THREE.Group();
+        jacketGroup.add(torsoGroup);
+
+        // Upper Chest
+        const chestGeo = new THREE.CylinderGeometry(0.58, 0.54, 0.5, 32);
+        const chest = new THREE.Mesh(chestGeo, fabricMat);
+        chest.position.y = 0.95;
+        chest.scale.set(1, 1, 0.7); // Flatten depth
+        chest.castShadow = true;
+        torsoGroup.add(chest);
+
+        // Waist (Tapered)
+        const waistGeo = new THREE.CylinderGeometry(0.54, 0.48, 0.5, 32);
+        const waist = new THREE.Mesh(waistGeo, fabricMat);
+        waist.position.y = 0.45;
+        waist.scale.set(1, 1, 0.7);
+        waist.castShadow = true;
+        torsoGroup.add(waist);
+
+        // Hips (Slight Flare)
+        const hipsGeo = new THREE.CylinderGeometry(0.48, 0.52, 0.4, 32);
+        const hips = new THREE.Mesh(hipsGeo, fabricMat);
+        hips.position.y = 0.0;
+        hips.scale.set(1, 1, 0.7);
+        hips.castShadow = true;
+        torsoGroup.add(hips);
+
+        // Shoulders (Natural Slope)
+        // Using spheres scaled to bridge neck and arm
+        const shoulderGeo = new THREE.SphereGeometry(0.55, 32, 24);
+        const lShoulder = new THREE.Mesh(shoulderGeo, fabricMat);
+        lShoulder.position.set(0.45, 1.05, 0);
+        lShoulder.scale.set(1, 0.7, 0.8);
+        torsoGroup.add(lShoulder);
+
+        const rShoulder = new THREE.Mesh(shoulderGeo, fabricMat);
+        rShoulder.position.set(-0.45, 1.05, 0);
+        rShoulder.scale.set(1, 0.7, 0.8);
+        torsoGroup.add(rShoulder);
+
+        // -- ARMS (Articulated & Relaxed) --
+        function createNaturalArm(side) {
+            const armGroup = new THREE.Group();
+            
+            // 1. Upper Arm (Humerus)
+            const upperGeo = new THREE.CylinderGeometry(0.22, 0.19, 0.65, 24);
+            const upperArm = new THREE.Mesh(upperGeo, fabricMat);
+            upperArm.position.y = -0.3;
+            upperArm.position.x = side * 0.1; 
+            upperArm.rotation.z = side * 0.15; // Relaxed angle
+            armGroup.add(upperArm);
+
+            // 2. Elbow Joint (Sphere for smooth bend)
+            const elbowGeo = new THREE.SphereGeometry(0.185, 24, 24);
+            const elbow = new THREE.Mesh(elbowGeo, fabricMat);
+            elbow.position.set(side * 0.15, -0.65, 0.05);
+            armGroup.add(elbow);
+
+            // 3. Forearm (Radius/Ulna) - Bent forward
+            const lowerGeo = new THREE.CylinderGeometry(0.18, 0.15, 0.65, 24);
+            const lowerArm = new THREE.Mesh(lowerGeo, fabricMat);
+            lowerArm.position.set(side * 0.22, -0.95, 0.2); 
+            lowerArm.rotation.x = -0.35; // Natural bend
+            lowerArm.rotation.z = side * 0.1;
+            armGroup.add(lowerArm);
+
+            // 4. Cuff
+            const cuffGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.1, 24);
+            const cuff = new THREE.Mesh(cuffGeo, glossyMat);
+            cuff.position.set(side * 0.27, -1.25, 0.32);
+            cuff.rotation.x = -0.35;
+            cuff.rotation.z = side * 0.1;
+            armGroup.add(cuff);
+
+            // 5. Epaulet (Shoulder Rank)
+            const epauletGeo = new THREE.BoxGeometry(0.16, 0.03, 0.35);
+            const epaulet = new THREE.Mesh(epauletGeo, techMat);
+            epaulet.position.set(0, 0.05, 0);
+            epaulet.rotation.z = side * -0.25; // Matches shoulder slope
+            armGroup.add(epaulet);
+
+            // Attach Arm to Body
+            armGroup.position.set(side * 0.55, 1.05, 0);
+            jacketGroup.add(armGroup);
+        }
+        createNaturalArm(1);  // Left
+        createNaturalArm(-1); // Right
+
+        // -- DETAILS & HARDWARE --
+
+        // High Collar
+        const collarGeo = new THREE.CylinderGeometry(0.28, 0.42, 0.25, 32, 1, true, 0, Math.PI * 1.6); // Open front
+        const collar = new THREE.Mesh(collarGeo, fabricMat);
+        collar.position.y = 1.32;
+        collar.rotation.y = Math.PI * 0.2; // Rotate opening to front center
+        collar.material.side = THREE.DoubleSide;
+        torsoGroup.add(collar);
+
+        // LED Strip (Embedded)
+        const ledStripGeo = new THREE.TorusGeometry(0.29, 0.02, 8, 40, Math.PI * 1.5);
+        const ledStrip = new THREE.Mesh(ledStripGeo, ledMat);
+        ledStrip.position.set(0, 1.38, 0);
+        ledStrip.rotation.x = Math.PI / 2;
+        ledStrip.rotation.z = Math.PI * 0.75; // Align opening
+        torsoGroup.add(ledStrip);
+
+        // Main Zipper
+        const zipGeo = new THREE.BoxGeometry(0.04, 1.25, 0.03);
+        const zip = new THREE.Mesh(zipGeo, techMat);
+        zip.position.set(0, 0.55, 0.36); // On surface of chest
+        torsoGroup.add(zip);
+
+        // Pockets (Flush)
+        const pocketGeo = new THREE.BoxGeometry(0.3, 0.35, 0.04);
+        const p1 = new THREE.Mesh(pocketGeo, fabricMat);
+        p1.position.set(0.3, 0.2, 0.34);
+        p1.rotation.y = -0.2;
+        torsoGroup.add(p1);
+        const p2 = p1.clone();
+        p2.position.set(-0.3, 0.2, 0.34);
+        p2.rotation.y = 0.2;
+        torsoGroup.add(p2);
+
+
+        // -- ADAPTIVE VENTS (Integrated into Chest Seams) --
+        const vents = [];
+        function createIntegratedVent(x) {
+            const group = new THREE.Group();
+            group.position.set(x, 0.85, 0.33);
+            group.rotation.y = x > 0 ? -0.2 : 0.2;
+
+            // Vent Frame
+            const frameGeo = new THREE.PlaneGeometry(0.2, 0.3);
+            const frame = new THREE.Mesh(frameGeo, new THREE.MeshBasicMaterial({color: 0x050505})); // Dark hole
+            group.add(frame);
+
+            // Vent Cover (Matches fabric)
+            const coverGeo = new THREE.BoxGeometry(0.21, 0.31, 0.03);
+            const cover = new THREE.Mesh(coverGeo, fabricMat);
+            
+            // Pivot on outer edge for opening like a door/flap
+            const pivotX = x > 0 ? 0.1 : -0.1;
+            cover.geometry.translate(pivotX, 0, 0);
+            cover.position.x = -pivotX;
+
+            group.add(cover);
+            group.userData = { cover: cover, side: x > 0 ? 1 : -1 };
+
+            jacketGroup.add(group);
+            vents.push(group);
+        }
+        createIntegratedVent(0.22);
+        createIntegratedVent(-0.22);
+
+
+        // --- 4. WEATHER SYSTEM ---
+        const particleCount = 2000;
+        const pGeo = new THREE.BufferGeometry();
+        const pPos = new Float32Array(particleCount * 3);
+        for(let i=0; i<particleCount*3; i++) pPos[i] = (Math.random()-0.5)*15;
+        pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+        const rainMat = new THREE.PointsMaterial({color:0xaaaaaa, size:0.04, transparent:true, opacity:0});
+        const rain = new THREE.Points(pGeo, rainMat);
+        scene.add(rain);
+
+        // --- 5. LOGIC & UI ---
+        const systemLog = document.getElementById('system-log');
+        let ventState = 0; // 0=closed, 1=open
+        let currentMode = 'normal';
+
+        function log(msg) {
+            const div = document.createElement('div');
+            div.className = 'log-entry';
+            div.innerText = `> ${msg}`;
+            systemLog.appendChild(div);
+            systemLog.scrollTop = systemLog.scrollHeight;
+        }
+
+        function setWeather(mode) {
+            if (mode === currentMode) return;
+            currentMode = mode;
+            
+            const led = document.getElementById('led-indicator');
+            const lbl = document.getElementById('mode-label');
+            const txt = document.getElementById('status-text');
+
+            // Reset
+            rainMat.opacity = 0;
+            scene.fog.density = 0.02;
+            scene.fog.color.setHex(0x202936);
+            led.classList.remove('status-pulse-red');
+            
+            if (mode === 'normal') {
+                log("Sensors stable. Normal operation.");
+                setColor(0x0088ff);
+                ventState = 0;
+                led.className = "w-3 h-3 rounded-full bg-blue-500 shadow-[0_0_8px_#3b82f6]";
+                lbl.innerText = "NORMAL";
+                lbl.className = "text-sm font-mono font-bold text-blue-400";
+                txt.innerText = "Conditions optimal. Monitoring active.";
+            }
+            else if (mode === 'hot') {
+                log("⚠ High Temp (38°C). Opening cooling intakes.");
+                setColor(0xffaa00);
+                ventState = 1; // Open
+                led.className = "w-3 h-3 rounded-full bg-yellow-400 shadow-[0_0_8px_#fbbf24]";
+                lbl.innerText = "HEAT ALERT";
+                lbl.className = "text-sm font-mono font-bold text-yellow-400";
+                txt.innerText = "Heat adaptation active. Vents open.";
+            }
+            else if (mode === 'storm') {
+                log("⚠ Pressure Drop. Sealing suit.");
+                setColor(0xff0000);
+                ventState = 0; // Close
+                rainMat.opacity = 0.7; // Rain
+                led.className = "w-3 h-3 rounded-full bg-red-600 shadow-[0_0_8px_#dc2626] status-pulse-red";
+                lbl.innerText = "STORM PROTOCOL";
+                lbl.className = "text-sm font-mono font-bold text-red-500";
+                txt.innerText = "Heavy rain/wind protection active.";
+            }
+            else if (mode === 'fog') {
+                log("⚠ Low Visibility. High-contrast mode.");
+                setColor(0xffffff);
+                ventState = 0;
+                scene.fog.density = 0.15;
+                scene.fog.color.setHex(0xcccccc);
+                led.className = "w-3 h-3 rounded-full bg-white shadow-[0_0_8px_#fff]";
+                lbl.innerText = "LOW VISIBILITY";
+                lbl.className = "text-sm font-mono font-bold text-white";
+                txt.innerText = "Fog condensation prevention active.";
+            }
+        }
+
+        function setColor(hex) {
+            ledMat.color.setHex(hex);
+            collarLight.color.setHex(hex);
+        }
+
+        // --- ANIMATION LOOP ---
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+            const time = clock.getElapsedTime();
+
+            controls.update();
+
+            // 1. Idle Breath (Subtle scale Y)
+            jacketGroup.position.y = Math.sin(time * 0.5) * 0.02;
+            jacketGroup.rotation.y = Math.sin(time * 0.2) * 0.05;
+
+            // 2. Vent Animation
+            vents.forEach(v => {
+                const target = ventState === 1 ? v.userData.side * 0.8 : 0; // Open less for realism
+                v.userData.cover.rotation.y = THREE.MathUtils.lerp(v.userData.cover.rotation.y, target, delta * 4);
+            });
+
+            // 3. Storm Pulse
+            if (currentMode === 'storm') {
+                collarLight.intensity = 1.5 + Math.sin(time * 15) * 1.5;
+                // Rain fall
+                const positions = rain.geometry.attributes.position.array;
+                for(let i=1; i<positions.length; i+=3) {
+                    positions[i] -= 0.5;
+                    if(positions[i] < -5) positions[i] = 10;
+                }
+                rain.geometry.attributes.position.needsUpdate = true;
+            } else {
+                collarLight.intensity = THREE.MathUtils.lerp(collarLight.intensity, 1, delta * 2);
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+
+    </script>
+</body>
+</html>
